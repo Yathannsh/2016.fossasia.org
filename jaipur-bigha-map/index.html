@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jaipur Bigha Price Map — Region-by-Region Market Averages</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root {
+      --ink: #1c1917;
+      --ink-soft: #44403c;
+      --muted: #78716c;
+      --paper: #faf7f2;
+      --panel: #ffffff;
+      --line: #e7e5e4;
+      --accent: #9a3412;
+      --accent-soft: #fdba74;
+      --map-fade: rgba(28, 25, 23, 0.55);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "DM Sans", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(320px, 400px) 1fr;
+      height: 100%;
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 52vh 1fr;
+      }
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      overflow: auto;
+      padding: 28px 24px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .sidebar {
+        border-right: none;
+        border-top: 1px solid var(--line);
+        order: 2;
+      }
+      .map-wrap { order: 1; }
+    }
+
+    .brand {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.65rem;
+      font-weight: 600;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .lede {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: var(--paper);
+    }
+
+    .chip strong { color: var(--ink); font-weight: 600; }
+
+    .search {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+      font-size: 0.92rem;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    .search:focus {
+      outline: 2px solid var(--accent-soft);
+      border-color: var(--accent);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stat {
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--paper);
+    }
+    .stat .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .stat .value {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .section-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 4px 0 0;
+      font-weight: 600;
+    }
+
+    .region-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .region-item {
+      display: grid;
+      grid-template-columns: 10px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: left;
+      background: transparent;
+      font: inherit;
+      color: inherit;
+      width: 100%;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .region-item:hover,
+    .region-item.active {
+      background: var(--paper);
+      border-color: var(--line);
+    }
+    .region-item .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+    }
+    .region-item .name {
+      font-size: 0.88rem;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+    .region-item .price {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    .detail {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      background: var(--paper);
+      display: none;
+    }
+    .detail.visible { display: block; }
+    .detail h2 {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.2rem;
+      margin: 0 0 6px;
+      font-weight: 600;
+    }
+    .detail .avg {
+      font-size: 1.8rem;
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 8px 0 2px;
+    }
+    .detail .range { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; }
+    .detail dl {
+      margin: 0;
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 8px 12px;
+      font-size: 0.85rem;
+    }
+    .detail dt { color: var(--muted); }
+    .detail dd { margin: 0; color: var(--ink-soft); line-height: 1.4; }
+
+    .disclaimer {
+      font-size: 0.75rem;
+      line-height: 1.45;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    .map-wrap {
+      position: relative;
+      min-height: 320px;
+    }
+    #map {
+      position: absolute;
+      inset: 0;
+      background: #d6d3d1;
+    }
+
+    .map-legend {
+      position: absolute;
+      z-index: 1000;
+      left: 14px;
+      bottom: 14px;
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.75rem;
+      box-shadow: none;
+      max-width: 200px;
+    }
+    .map-legend h3 {
+      margin: 0 0 8px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .map-legend .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 0;
+      color: var(--ink-soft);
+    }
+    .map-legend i {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .map-title {
+      position: absolute;
+      z-index: 1000;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      color: var(--ink-soft);
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    @media (max-width: 600px) {
+      .map-title { display: none; }
+    }
+
+    .leaflet-popup-content-wrapper {
+      border-radius: 12px;
+      font-family: "DM Sans", system-ui, sans-serif;
+    }
+    .leaflet-popup-content {
+      margin: 12px 14px;
+      min-width: 180px;
+    }
+    .popup-name {
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+    .popup-avg {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 1.15rem;
+    }
+    .popup-meta {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+
+    .urban-note {
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: var(--ink-soft);
+      padding: 12px;
+      border-left: 3px solid var(--accent);
+      background: #fff7ed;
+      border-radius: 0 8px 8px 0;
+    }
+    .urban-note table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 0.75rem;
+    }
+    .urban-note th, .urban-note td {
+      text-align: left;
+      padding: 4px 0;
+      border-bottom: 1px solid #fed7aa;
+    }
+    .urban-note th { color: var(--muted); font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div>
+        <h1 class="brand">Jaipur Bigha Map</h1>
+        <p class="lede" style="margin-top:10px">
+          Average agricultural land price per Pucca Bigha across Greater Jaipur —
+          highway corridors, tehsils, and urban-fringe pockets.
+        </p>
+      </div>
+
+      <div class="meta-row">
+        <span class="chip"><strong>Unit</strong> ₹ lakh / bigha</span>
+        <span class="chip"><strong>1 bigha</strong> 3,025 sq yd</span>
+        <span class="chip"><strong>Base</strong> Esri / OSM data</span>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <input class="search" id="search" type="search" placeholder="Filter regions (e.g. Ajmer, Bassi, Kalwar)…" autocomplete="off" />
+
+      <div class="detail" id="detail"></div>
+
+      <p class="section-title">All regions (click to focus)</p>
+      <ul class="region-list" id="regionList"></ul>
+
+      <div class="urban-note" id="urbanNote"></div>
+
+      <p class="disclaimer" id="disclaimer"></p>
+    </aside>
+
+    <div class="map-wrap">
+      <div id="map"></div>
+      <div class="map-title">Tap a coloured zone · averages are market asks, not circle rates</div>
+      <div class="map-legend" id="legend"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="./data.js"></script>
+  <script>
+    (function () {
+      const DATA = window.JAIPUR_BIGHA;
+      const regions = DATA.regions.slice().sort((a, b) => b.avg - a.avg);
+
+      const map = L.map("map", {
+        center: [26.95, 75.85],
+        zoom: 10,
+        zoomControl: true,
+        attributionControl: true,
+      });
+
+      /* Esri World Street Map — free public tiles suitable for overlay choropleths */
+      L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+        {
+          attribution:
+            'Tiles &copy; <a href="https://www.esri.com/">Esri</a> · Data &copy; OpenStreetMap contributors, and the GIS User Community',
+          maxZoom: 19,
+        }
+      ).addTo(map);
+
+      const layerById = {};
+      let activeId = null;
+
+      function fmt(n) {
+        return "₹" + n + " L";
+      }
+
+      function popupHtml(r) {
+        return (
+          '<div class="popup-name">' + r.name + "</div>" +
+          '<div class="popup-avg">' + fmt(r.avg) + " / bigha</div>" +
+          '<div class="popup-meta">Range ' + fmt(r.low) + " – " + fmt(r.high) +
+          " · Confidence: " + r.confidence + "</div>"
+        );
+      }
+
+      function styleFor(r, isActive) {
+        const c = DATA.colorFor(r.avg);
+        return {
+          color: isActive ? "#1c1917" : c,
+          weight: isActive ? 2.5 : 1.2,
+          opacity: 0.95,
+          fillColor: c,
+          fillOpacity: isActive ? 0.72 : 0.48,
+        };
+      }
+
+      const group = L.featureGroup();
+      regions.forEach(function (r) {
+        const layer = L.polygon(r.polygon, styleFor(r, false));
+        layer.bindPopup(popupHtml(r));
+        layer.on("click", function () {
+          selectRegion(r.id, true);
+        });
+        layer.on("mouseover", function () {
+          if (activeId !== r.id) layer.setStyle({ fillOpacity: 0.65, weight: 2 });
+        });
+        layer.on("mouseout", function () {
+          if (activeId !== r.id) layer.setStyle(styleFor(r, false));
+        });
+        layerById[r.id] = layer;
+        group.addLayer(layer);
+      });
+      group.addTo(map);
+      map.fitBounds(group.getBounds().pad(0.08));
+
+      /* City centre marker */
+      L.circleMarker([26.9124, 75.7873], {
+        radius: 5,
+        color: "#1c1917",
+        weight: 2,
+        fillColor: "#fff",
+        fillOpacity: 1,
+      })
+        .bindTooltip("Jaipur centre (MI Road / Badi Chaupar axis)", { direction: "top" })
+        .addTo(map);
+
+      function selectRegion(id, fromMap) {
+        activeId = id;
+        const r = regions.find(function (x) { return x.id === id; });
+        if (!r) return;
+
+        Object.keys(layerById).forEach(function (key) {
+          layerById[key].setStyle(styleFor(
+            regions.find(function (x) { return x.id === key; }),
+            key === id
+          ));
+        });
+
+        document.querySelectorAll(".region-item").forEach(function (el) {
+          el.classList.toggle("active", el.dataset.id === id);
+        });
+
+        const detail = document.getElementById("detail");
+        detail.className = "detail visible";
+        detail.innerHTML =
+          "<h2>" + r.name + "</h2>" +
+          '<div class="avg">' + fmt(r.avg) + "</div>" +
+          '<div class="range">Typical ask range ' + fmt(r.low) + " – " + fmt(r.high) + " per Pucca Bigha</div>" +
+          "<dl>" +
+          "<dt>Tehsil / belt</dt><dd>" + r.tehsil + "</dd>" +
+          "<dt>Land type</dt><dd>" + r.landType + "</dd>" +
+          "<dt>Confidence</dt><dd>" + r.confidence + "</dd>" +
+          "<dt>Drivers</dt><dd>" + r.drivers + "</dd>" +
+          "<dt>Notes</dt><dd>" + r.notes + "</dd>" +
+          "<dt>Sources</dt><dd>" + r.sources + "</dd>" +
+          "</dl>";
+
+        if (!fromMap) {
+          map.flyToBounds(layerById[id].getBounds(), { padding: [40, 40], maxZoom: 12 });
+          layerById[id].openPopup();
+        }
+      }
+
+      /* Stats */
+      const avgs = regions.map(function (r) { return r.avg; });
+      const mean = Math.round(avgs.reduce(function (a, b) { return a + b; }, 0) / avgs.length);
+      const sorted = avgs.slice().sort(function (a, b) { return a - b; });
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const top = regions[0];
+      const bottom = regions[regions.length - 1];
+
+      document.getElementById("stats").innerHTML =
+        '<div class="stat"><div class="label">Zones mapped</div><div class="value">' + regions.length + "</div></div>" +
+        '<div class="stat"><div class="label">District median</div><div class="value">' + fmt(median) + "</div></div>" +
+        '<div class="stat"><div class="label">Highest avg</div><div class="value" style="font-size:1.05rem">' + top.name.split("/")[0].trim() + "<br><span style='font-size:0.85rem'>" + fmt(top.avg) + "</span></div></div>" +
+        '<div class="stat"><div class="label">Lowest avg</div><div class="value" style="font-size:1.05rem">' + bottom.name.split("/")[0].trim() + "<br><span style='font-size:0.85rem'>" + fmt(bottom.avg) + "</span></div></div>";
+
+      /* Legend */
+      document.getElementById("legend").innerHTML =
+        "<h3>₹ lakh / bigha</h3>" +
+        DATA.legend.map(function (b) {
+          return '<div class="row"><i style="background:' + b.color + '"></i>' + b.label + "</div>";
+        }).join("");
+
+      /* List */
+      const listEl = document.getElementById("regionList");
+      function renderList(filter) {
+        const q = (filter || "").trim().toLowerCase();
+        listEl.innerHTML = "";
+        regions
+          .filter(function (r) {
+            if (!q) return true;
+            return (r.name + " " + r.tehsil + " " + r.drivers).toLowerCase().indexOf(q) !== -1;
+          })
+          .forEach(function (r) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "region-item" + (activeId === r.id ? " active" : "");
+            btn.dataset.id = r.id;
+            btn.innerHTML =
+              '<span class="swatch" style="background:' + DATA.colorFor(r.avg) + '"></span>' +
+              '<span class="name">' + r.name + "</span>" +
+              '<span class="price">' + fmt(r.avg) + "</span>";
+            btn.addEventListener("click", function () { selectRegion(r.id, false); });
+            listEl.appendChild(btn);
+          });
+      }
+      renderList("");
+      document.getElementById("search").addEventListener("input", function (e) {
+        renderList(e.target.value);
+      });
+
+      /* Urban equivalents */
+      const u = DATA.urbanEquivalents;
+      document.getElementById("urbanNote").innerHTML =
+        "<strong>Not the same as plots.</strong> Coloured zones are agricultural / peri-urban land still quoted per bigha. " +
+        "Sanctioned urban plots convert to crore-scale bigha equivalents:" +
+        "<table><thead><tr><th>Market</th><th>₹ / sq yd</th><th>≈ ₹ Cr / bigha</th></tr></thead><tbody>" +
+        u.map(function (row) {
+          return "<tr><td>" + row.name + "</td><td>" +
+            (row.ratePerSqYd[0] / 1000).toFixed(0) + "–" + (row.ratePerSqYd[1] / 1000).toFixed(0) + "k</td><td>" +
+            row.equivBighaCr[0] + "–" + row.equivBighaCr[1] + "</td></tr>";
+        }).join("") +
+        "</tbody></table>";
+
+      document.getElementById("disclaimer").textContent =
+        DATA.meta.asOf + ". " + DATA.meta.bighaDef + ". " + DATA.meta.disclaimer +
+        " Always verify khasra-level DLC on epanjiyan.rajasthan.gov.in and confirm 90A / JDA status before transacting.";
+    })();
+  </script>
+</body>
+</html>
